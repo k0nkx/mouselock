@@ -1,0 +1,96 @@
+-- Destroy old stuff if exists
+if getgenv().AimbotConnection then
+    getgenv().AimbotConnection:Disconnect()
+    getgenv().AimbotInputBegan:Disconnect()
+    getgenv().AimbotInputEnded:Disconnect()
+    if getgenv().AimbotFOVCircle then
+        getgenv().AimbotFOVCircle:Remove()
+    end
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- SETTINGS TABLE
+local Settings = {
+    Bind = Enum.KeyCode.V,
+    AimPart = "Head",
+    Smoothness = 2,
+    FOV = 150,
+    FOVColor = Color3.fromRGB(255, 0, 0),
+    FOVTransparency = 0.5,
+    FOVThickness = 2
+}
+
+local fovCircle = Drawing.new("Circle")
+fovCircle.Color = Settings.FOVColor
+fovCircle.Thickness = Settings.FOVThickness
+fovCircle.Transparency = Settings.FOVTransparency
+fovCircle.Filled = false
+fovCircle.Visible = true
+fovCircle.Radius = Settings.FOV
+
+getgenv().AimbotFOVCircle = fovCircle
+
+local aiming = false
+local lockedTarget = nil
+
+getgenv().AimbotInputBegan = UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Settings.Bind then
+        aiming = true
+        lockedTarget = nil -- reset when starting aim
+    end
+end)
+
+getgenv().AimbotInputEnded = UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Settings.Bind then
+        aiming = false
+        lockedTarget = nil -- clear target on release
+    end
+end)
+
+local function isValidTarget(player)
+    return player and player.Character and player.Character:FindFirstChild(Settings.AimPart)
+end
+
+function getClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = Settings.FOV
+    local mousePos = UserInputService:GetMouseLocation()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and isValidTarget(player) then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(player.Character[Settings.AimPart].Position)
+            if onScreen then
+                local distance = (Vector2.new(mousePos.X, mousePos.Y) - Vector2.new(screenPos.X, screenPos.Y)).magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+getgenv().AimbotConnection = RunService.RenderStepped:Connect(function()
+    local mousePos = UserInputService:GetMouseLocation()
+    fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+
+    if aiming then
+        if not lockedTarget or not isValidTarget(lockedTarget) then
+            lockedTarget = getClosestPlayer()
+        end
+
+        if lockedTarget and isValidTarget(lockedTarget) then
+            local targetPos = Camera:WorldToViewportPoint(lockedTarget.Character[Settings.AimPart].Position)
+            local moveX = (targetPos.X - mousePos.X) / Settings.Smoothness
+            local moveY = (targetPos.Y - mousePos.Y) / Settings.Smoothness
+            mousemoverel(moveX, moveY)
+        end
+    else
+        lockedTarget = nil
+    end
+end)
