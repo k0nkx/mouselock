@@ -16,13 +16,14 @@ local Camera = workspace.CurrentCamera
 
 -- SETTINGS TABLE
 local Settings = {
-    Bind = Enum.KeyCode.V,
+    Bind = Enum.KeyCode.LeftShift,
     AimPart = "Head",
     Smoothness = 2,
-    FOV = 150,
+    FOV = 80,
     FOVColor = Color3.fromRGB(255, 0, 0),
     FOVTransparency = 0.5,
-    FOVThickness = 2
+    FOVThickness = 2,
+    IgnoreTeam = true -- ignore teammates if true
 }
 
 local fovCircle = Drawing.new("Circle")
@@ -41,22 +42,28 @@ local lockedTarget = nil
 getgenv().AimbotInputBegan = UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Settings.Bind then
         aiming = true
-        lockedTarget = nil -- reset when starting aim
+        lockedTarget = nil
     end
 end)
 
 getgenv().AimbotInputEnded = UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == Settings.Bind then
         aiming = false
-        lockedTarget = nil -- clear target on release
+        lockedTarget = nil
     end
 end)
 
 local function isValidTarget(player)
-    return player and player.Character and player.Character:FindFirstChild(Settings.AimPart)
+    if not player or not player.Character or not player.Character:FindFirstChild(Settings.AimPart) then
+        return false
+    end
+    if Settings.IgnoreTeam and LocalPlayer.Team and player.Team == LocalPlayer.Team then
+        return false
+    end
+    return true
 end
 
-function getClosestPlayer()
+local function getClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = Settings.FOV
     local mousePos = UserInputService:GetMouseLocation()
